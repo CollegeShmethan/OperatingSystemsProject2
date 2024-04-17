@@ -27,6 +27,9 @@
 // Easy File System
 #include <fstream>
 
+// Testing
+#include <iostream>
+
 #define NUM_VARIABLES 26
 #define NUM_SESSIONS 128
 #define NUM_BROWSER 128
@@ -243,7 +246,32 @@ void get_session_file_path(int session_id, char path[]) {
  */
 // What exactly is this asking for??
 void load_all_sessions() {
-    // TODO
+	// TODO
+	char path[BUFFER_LEN];
+	char c;
+	int variable;
+	std::ifstream session_file;
+
+	for (int i = 0; i < NUM_SESSIONS; i++) {
+		session_t session = session_list[i];
+		get_session_file_path(i, path);
+		session_file.open(path);
+		if (!session_file.good()) {
+			continue;
+		}
+		while (!session_file.eof()) {
+			session_file.get(c);
+			variable = c - 'a';
+			if (variable < 0 || variable > 25) {
+				break;
+			}
+			for (int j = 0; j < 3; j++) {
+				session_file.get(c);
+			}
+			session_file >> session.values[variable];
+			session_file.get(c);
+		}
+	}
 }
 
 /**
@@ -258,9 +286,10 @@ void save_session(int session_id) {
 	char path[BUFFER_LEN];
 	std::ofstream session_file;
 
-	session_to_str(session_id, result);
 	get_session_file_path(session_id, path);
 	session_file.open(path);
+
+	session_to_str(session_id, result);
 
 	for(int i = 0; result[i] != '\0'; i++) {
 		session_file << result[i];
