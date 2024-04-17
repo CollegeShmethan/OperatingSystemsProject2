@@ -23,6 +23,12 @@
 #include <sys/stat.h>
 #include <arpa/inet.h>
 
+// Easy File System
+#include <fstream>
+
+// Testing Purposes
+#include <iostream>
+
 #define COOKIE_PATH "./browser.cookie"
 
 static bool browser_on = true;  // Determines if the browser is on/off.
@@ -79,8 +85,36 @@ void read_user_input(char message[]) {
  * The file path of the cookie is stored in COOKIE_PATH.
  */
 void load_cookie() {
-    // TODO
-    session_id = -1;
+    // TODO Done?
+	std::ifstream cookie_file;
+	std::string cookie_key;
+
+	cookie_file.open(COOKIE_PATH);
+
+	if (!cookie_file.good()) {
+		session_id = -1;
+		return;
+	}
+
+	char c;
+
+	while (!cookie_file.eof()) {
+		c = cookie_file.get();
+		if (c == ':') {
+			break;
+		}
+		cookie_key += c;
+	}
+
+	if (cookie_key == "session_id") {
+		cookie_file >> session_id;
+		std::cout << session_id << '\n';
+		cookie_file.close();
+		return;
+	}
+
+	session_id = -1;
+	cookie_file.close();
 }
 
 /**
@@ -88,7 +122,16 @@ void load_cookie() {
  * The file path of the cookie is stored in COOKIE_PATH.
  */
 void save_cookie() {
-    // TODO
+    // TODO Done?
+	std::ofstream cookie_file;
+
+	cookie_file.open(COOKIE_PATH);
+
+	cookie_file << "session_id:";
+	cookie_file << std::to_string(session_id);
+	cookie_file << ";\n";
+
+	cookie_file.close();
 }
 
 /**

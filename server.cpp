@@ -24,6 +24,9 @@
 #include <sys/stat.h>
 #include <netinet/in.h>
 
+// Easy File System
+#include <fstream>
+
 #define NUM_VARIABLES 26
 #define NUM_SESSIONS 128
 #define NUM_BROWSER 128
@@ -238,6 +241,7 @@ void get_session_file_path(int session_id, char path[]) {
  * Loads every session from the disk one by one if it exists.
  * Use get_session_file_path() to get the file path for each session.
  */
+// What exactly is this asking for??
 void load_all_sessions() {
     // TODO
 }
@@ -248,8 +252,21 @@ void load_all_sessions() {
  *
  * @param session_id the session ID
  */
+// OVERWRITES PREVIOUS SAVE
 void save_session(int session_id) {
-    // TODO
+	char result[9];
+	char path[BUFFER_LEN];
+	std::ofstream session_file;
+
+	session_to_str(session_id, result);
+	get_session_file_path(session_id, path);
+	session_file.open(path);
+
+	for(int i = 0; result[i] != '\0'; i++) {
+		session_file << result[i];
+	}
+
+	session_file.close();
 }
 
 /**
