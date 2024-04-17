@@ -85,7 +85,6 @@ void read_user_input(char message[]) {
  * The file path of the cookie is stored in COOKIE_PATH.
  */
 void load_cookie() {
-    // TODO Done?
 	std::ifstream cookie_file;
 	std::string cookie_key;
 
@@ -122,7 +121,7 @@ void load_cookie() {
  * The file path of the cookie is stored in COOKIE_PATH.
  */
 void save_cookie() {
-    // TODO Done?
+    // Adapt if using more than 1 cookie.
 	std::ofstream cookie_file;
 
 	cookie_file.open(COOKIE_PATH);

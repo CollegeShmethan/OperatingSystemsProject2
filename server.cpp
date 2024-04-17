@@ -84,7 +84,7 @@ int register_browser(int browser_socket_fd);
 // processing the message received,
 // broadcasting the update to all browsers with the same session ID,
 // and backing up the session on the disk.
-void browser_handler(int browser_socket_fd);
+void * browser_handler(void * browser_socket_fd);
 
 // Starts the server.
 // Sets up the connection,
@@ -244,9 +244,7 @@ void get_session_file_path(int session_id, char path[]) {
  * Loads every session from the disk one by one if it exists.
  * Use get_session_file_path() to get the file path for each session.
  */
-// What exactly is this asking for??
 void load_all_sessions() {
-	// TODO
 	char path[BUFFER_LEN];
 	char c;
 	int variable;
@@ -280,7 +278,6 @@ void load_all_sessions() {
  *
  * @param session_id the session ID
  */
-// OVERWRITES PREVIOUS SAVE
 void save_session(int session_id) {
 	char result[9];
 	char path[BUFFER_LEN];
@@ -345,10 +342,10 @@ int register_browser(int browser_socket_fd) {
  *
  * @param browser_socket_fd the socket file descriptor of the browser connected
  */
-void browser_handler(int browser_socket_fd) {
-    int browser_id;
-
-    browser_id = register_browser(browser_socket_fd);
+void * browser_handler(void* browser_socket_fd) {
+	int browser_id;
+	int bs_fd = *((int *) browser_socket_fd);
+    browser_id = register_browser(bs_fd);
 
     int socket_fd = browser_list[browser_id].socket_fd;
     int session_id = browser_list[browser_id].session_id;
@@ -368,7 +365,7 @@ void browser_handler(int browser_socket_fd) {
             browser_list[browser_id].in_use = false;
             pthread_mutex_unlock(&browser_list_mutex);
             printf("Browser #%d exited.\n", browser_id);
-            return;
+            return browser_socket_fd;
         }
 
         if (message[0] == '\0') {
@@ -432,8 +429,12 @@ void start_server(int port) {
             continue;
         }
 
+	// TODO
+	// Create threads here
         // Starts the handler for the new browser.
-        browser_handler(browser_socket_fd);
+	pthread_t thread_id;
+	pthread_create(&thread_id, NULL, &browser_handler, &browser_socket_fd);
+	//browser_handler(browser_socket_fd);
     }
 
     // Closes the socket.
