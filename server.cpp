@@ -30,6 +30,9 @@
 // Unordered Map
 #include <unordered_map>
 
+// Time (For Psuedo-Random Number Seeding)
+#include <ctime>
+
 // Testing
 #include <iostream>
 
@@ -420,6 +423,7 @@ int register_browser(int browser_socket_fd) {
 
     	int session_id = strtol(message, NULL, 10);
     	if (session_id == -1) {
+		srand((int)time(0));
 		session_t session;
 		// Get random id
 		while (session_id == -1 || session_list.find(session_id) != session_list.end()) {
@@ -531,19 +535,19 @@ void start_server(int port) {
     printf("The server is now listening on port %d.\n", port);
 
     // Main loop to accept new browsers and creates handlers for them.
-    while (true) {
-        struct sockaddr_in browser_address;
-        socklen_t browser_address_len = sizeof(browser_address);
-        int browser_socket_fd = accept(server_socket_fd, (struct sockaddr *) &browser_address, &browser_address_len);
-        if ((browser_socket_fd) < 0) {
-            perror("Socket accept failed");
-            continue;
-        }
+	while (true) {
+        	struct sockaddr_in browser_address;
+        	socklen_t browser_address_len = sizeof(browser_address);
+        	int browser_socket_fd = accept(server_socket_fd, (struct sockaddr *) &browser_address, &browser_address_len);
+        	if ((browser_socket_fd) < 0) {
+	            	perror("Socket accept failed");
+        	    	continue;
+        	}
 
-        // Starts the handler for the new browser.
-	pthread_t thread_id;
-	pthread_create(&thread_id, NULL, &browser_handler, &browser_socket_fd);
-    }
+        	// Starts the handler for the new browser.
+		pthread_t thread_id;
+		pthread_create(&thread_id, NULL, &browser_handler, &browser_socket_fd);
+    	}
 
     // Closes the socket.
     close(server_socket_fd);
