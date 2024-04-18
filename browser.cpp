@@ -23,7 +23,7 @@
 #include <sys/stat.h>
 #include <arpa/inet.h>
 
-// Easy File System
+ // Easy File System
 #include <fstream>
 
 // Testing Purposes
@@ -54,7 +54,7 @@ void register_server();
 
 // Listens to the server.
 // Keeps receiving and printing the messages from the server.
-void server_listener();
+void* server_listener();
 
 // Starts the browser.
 // Sets up the connection, start the listener thread,
@@ -85,35 +85,35 @@ void read_user_input(char message[]) {
  * The file path of the cookie is stored in COOKIE_PATH.
  */
 void load_cookie() {
-	std::ifstream cookie_file;
-	std::string cookie_key;
+    std::ifstream cookie_file;
+    std::string cookie_key;
 
-	cookie_file.open(COOKIE_PATH);
+    cookie_file.open(COOKIE_PATH);
 
-	if (!cookie_file.good()) {
-		session_id = -1;
-		return;
-	}
+    if (!cookie_file.good()) {
+        session_id = -1;
+        return;
+    }
 
-	char c;
+    char c;
 
-	while (!cookie_file.eof()) {
-		c = cookie_file.get();
-		if (c == ':') {
-			break;
-		}
-		cookie_key += c;
-	}
+    while (!cookie_file.eof()) {
+        c = cookie_file.get();
+        if (c == ':') {
+            break;
+        }
+        cookie_key += c;
+    }
 
-	if (cookie_key == "session_id") {
-		cookie_file >> session_id;
-		std::cout << session_id << '\n';
-		cookie_file.close();
-		return;
-	}
+    if (cookie_key == "session_id") {
+        cookie_file >> session_id;
+        std::cout << session_id << '\n';
+        cookie_file.close();
+        return;
+    }
 
-	session_id = -1;
-	cookie_file.close();
+    session_id = -1;
+    cookie_file.close();
 }
 
 /**
@@ -122,15 +122,15 @@ void load_cookie() {
  */
 void save_cookie() {
     // Adapt if using more than 1 cookie.
-	std::ofstream cookie_file;
+    std::ofstream cookie_file;
 
-	cookie_file.open(COOKIE_PATH);
+    cookie_file.open(COOKIE_PATH);
 
-	cookie_file << "session_id:";
-	cookie_file << std::to_string(session_id);
-	cookie_file << ";\n";
+    cookie_file << "session_id:";
+    cookie_file << std::to_string(session_id);
+    cookie_file << ";\n";
 
-	cookie_file.close();
+    cookie_file.close();
 }
 
 /**
@@ -149,10 +149,13 @@ void register_server() {
  * Listens to the server; keeps receiving and printing the messages from the server in a while loop
  * if the browser is on.
  */
-void server_listener() {
-    char message[BUFFER_LEN];
-    receive_message(server_socket_fd, message);
-    puts(message);
+void* server_listener(void* arg) {
+    while (browser_on) {
+        char message[BUFFER_LEN];
+        receive_message(server_socket_fd, message);
+        puts(message);
+    }
+    return (void*)arg;
 }
 
 /**
@@ -179,7 +182,7 @@ void start_browser(const char host_ip[], int port) {
     server_addr.sin_addr.s_addr = inet_addr(host_ip);
     server_addr.sin_port = htons(port);
 
-    if (connect(server_socket_fd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
+    if (connect(server_socket_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("Socket connect failed");
         exit(EXIT_FAILURE);
     }
@@ -192,12 +195,14 @@ void start_browser(const char host_ip[], int port) {
     // Saves the session ID to the cookie on the disk.
     save_cookie();
 
+    pthread_t server_listener_id;
+    pthread_create(&server_listener_id, NULL, &server_listener, &server_listener_id);
+
     // Main loop to read in the user's input and send it out.
     while (browser_on) {
         char message[BUFFER_LEN];
         read_user_input(message);
         send_message(server_socket_fd, message);
-        server_listener();
     }
 
     // Closes the socket.
@@ -212,26 +217,30 @@ void start_browser(const char host_ip[], int port) {
  * @param argv the array that contains all the arguments
  * @return exit code
  */
-int main(int argc, char *argv[]) {
-    char *host_ip = DEFAULT_HOST_IP;
+int main(int argc, char* argv[]) {
+    char* host_ip = DEFAULT_HOST_IP;
     int port = DEFAULT_PORT;
 
     if (argc == 1) {
-    } else if ((argc == 3)
-               && ((strcmp(argv[1], "--host") == 0) || (strcmp(argv[1], "-h") == 0))) {
+    }
+    else if ((argc == 3)
+        && ((strcmp(argv[1], "--host") == 0) || (strcmp(argv[1], "-h") == 0))) {
         host_ip = argv[2];
 
-    } else if ((argc == 3)
-               && ((strcmp(argv[1], "--port") == 0) || (strcmp(argv[1], "-p") == 0))) {
+    }
+    else if ((argc == 3)
+        && ((strcmp(argv[1], "--port") == 0) || (strcmp(argv[1], "-p") == 0))) {
         port = strtol(argv[2], NULL, 10);
 
-    } else if ((argc == 5)
-               && ((strcmp(argv[1], "--host") == 0) || (strcmp(argv[1], "-h") == 0))
-               && ((strcmp(argv[3], "--port") == 0) || (strcmp(argv[3], "-p") == 0))) {
+    }
+    else if ((argc == 5)
+        && ((strcmp(argv[1], "--host") == 0) || (strcmp(argv[1], "-h") == 0))
+        && ((strcmp(argv[3], "--port") == 0) || (strcmp(argv[3], "-p") == 0))) {
         host_ip = argv[2];
         port = strtol(argv[4], NULL, 10);
 
-    } else {
+    }
+    else {
         puts("Invalid arguments.");
         exit(EXIT_FAILURE);
     }
