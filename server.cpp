@@ -24,8 +24,11 @@
 #include <sys/stat.h>
 #include <netinet/in.h>
 
-// Easy File System
+// File System
 #include <fstream>
+
+// Unordered Map
+#include <unordered_map>
 
 // Testing
 #include <iostream>
@@ -35,6 +38,8 @@
 #define NUM_BROWSER 128
 #define DATA_DIR "./sessions"
 #define SESSION_PATH_LEN 128
+// Storage file for sessions
+#define SESSIONS_PATH "./sessions/session.dat"
 
 typedef struct browser_struct {
     bool in_use;
@@ -49,7 +54,7 @@ typedef struct session_struct {
 } session_t;
 
 static browser_t browser_list[NUM_BROWSER];                             // Stores the information of all browsers.
-static session_t session_list[NUM_SESSIONS];                            // Stores the information of all sessions.
+static std::unordered_map<int, session_t> session_list;			// Stores the information of all sessions.
 static pthread_mutex_t browser_list_mutex = PTHREAD_MUTEX_INITIALIZER;  // A mutex lock for the browser list.
 static pthread_mutex_t session_list_mutex = PTHREAD_MUTEX_INITIALIZER;  // A mutex lock for the session list.
 
@@ -104,7 +109,7 @@ void session_to_str(int session_id, char result[]) {
     memset(result, 0, BUFFER_LEN);
     session_t session = session_list[session_id];
 
-    for (int i = 0; i < NUM_VARIABLES; ++i) {
+    for (int i = 0; i < NUM_VARIABLES; i++) {
         if (session.variables[i]) {
             char line[32];
 
@@ -279,30 +284,63 @@ void get_session_file_path(int session_id, char path[]) {
  * Use get_session_file_path() to get the file path for each session.
  */
 void load_all_sessions() {
-	char path[BUFFER_LEN];
+	char path[SESSION_PATH_LEN];
 	char c;
 	int variable;
 	std::ifstream session_file;
+	std::ifstream sessions_list;
+	session_t session;
 
-	for (int i = 0; i < NUM_SESSIONS; i++) {
-		session_t session = session_list[i];
-		get_session_file_path(i, path);
+	sessions_list.open(SESSIONS_PATH);
+
+	if (!sessions_list.good()) {
+		std::ofstream create_backup;
+		create_backup.open(SESSIONS_PATH);
+		create_backup.close();
+	}
+
+	int id = -1;
+	int prev_id = -1;
+	char c2;
+	double val;
+	while (sessions_list.good() && !sessions_list.eof()) {
+		sessions_list >> id;
+		sessions_list.get(c2);
+		session_list[id] = { false,   };
+		get_session_file_path(id, path);
 		session_file.open(path);
+		if (id == prev_id) {
+			break;
+		}
 		if (!session_file.good()) {
+			printf("Error acquiring Session %d information.\n", id);
 			continue;
 		}
+		prev_id = id;
 		while (!session_file.eof()) {
-			session_file.get(c);
-			variable = c - 'a';
-			if (variable < 0 || variable > 25) {
+                        session_file.get(c);
+			if (session_file.eof()) {
 				break;
 			}
-			for (int j = 0; j < 3; j++) {
-				session_file.get(c);
-			}
-			session_file >> session.values[variable];
+                        variable = c - 'a';
+                        if (variable < 0 || variable > 25) {
+                                printf("Error with Session %d file formatting.\n", id);
+				break;
+                        }
+                        for (int j = 0; j < 3; j++) {
+                                session_file.get(c);
+                        }
+                        session_file >> val;
+			if (val) {
+				session_list[id].values[variable] = val;
+				session_list[id].variables[variable] = true;
+			} else {
+				session_list[id].variables[variable] = false;
+				session_list[id].values[variable] = 0.0;
+                        }
 			session_file.get(c);
-		}
+                }
+		session_file.close();
 	}
 }
 
@@ -313,16 +351,43 @@ void load_all_sessions() {
  * @param session_id the session ID
  */
 void save_session(int session_id) {
-	char result[9];
 	char path[BUFFER_LEN];
+	char result[BUFFER_LEN];
+	bool saved = false;
 	std::ofstream session_file;
+	std::ifstream sessions_list;
+	std::ofstream sessions_output;
+
+	sessions_list.open(SESSIONS_PATH);
+
+	int id = -1;
+	char c;
+	while (!sessions_list.eof()) {
+		sessions_list >> id;
+		sessions_list.get(c);
+		if (id == -1) {
+			break;
+		}
+		if (id == session_id) {
+			saved = true;
+		}
+	}
+
+	sessions_list.close();
+
+	if (!saved) {
+		sessions_output.open(SESSIONS_PATH);
+		sessions_output << session_id;
+		sessions_output << '\n';
+		sessions_output.close();
+	}
 
 	get_session_file_path(session_id, path);
 	session_file.open(path);
 
 	session_to_str(session_id, result);
 
-	for(int i = 0; result[i] != '\0'; i++) {
+	for (int i = 0; result[i] != '\0'; i++) {
 		session_file << result[i];
 	}
 
@@ -355,15 +420,18 @@ int register_browser(int browser_socket_fd) {
 
     	int session_id = strtol(message, NULL, 10);
     	if (session_id == -1) {
-        	for (int i = 0; i < NUM_SESSIONS; ++i) {
-            		if (!session_list[i].in_use) {
-                		session_id = i;
-				pthread_mutex_lock(&session_list_mutex);
-                		session_list[session_id].in_use = true;
-				pthread_mutex_unlock(&session_list_mutex);
-                		break;
-            		}
-        	}
+		session_t session;
+		// Get random id
+		while (session_id == -1 || session_list.find(session_id) != session_list.end()) {
+			session_id = rand() % 10000;
+		}
+		// Create new session in session_list.
+		// Are you supposed to save the sessions created for eternity, and not mark them as unused?
+		// If not, you can check sessions used first instead of adding new ones.
+		pthread_mutex_lock(&session_list_mutex);
+		session_list[session_id] = session;
+               	session_list[session_id].in_use = true;
+		pthread_mutex_unlock(&session_list_mutex);
     	}
 
 	pthread_mutex_lock(&browser_list_mutex);
@@ -413,6 +481,7 @@ void * browser_handler(void* bs_fd) {
         }
 
         bool data_valid = process_message(session_id, message);
+
         if (!data_valid) {
             // Send the error message to the browser.
 		send_message(browser_socket_fd, "ERROR");
@@ -420,6 +489,7 @@ void * browser_handler(void* bs_fd) {
         }
 
         session_to_str(session_id, response);
+
         broadcast(session_id, response);
 
         save_session(session_id);
