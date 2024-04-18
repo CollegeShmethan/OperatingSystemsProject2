@@ -309,7 +309,6 @@ void load_all_sessions() {
 	while (sessions_list.good() && !sessions_list.eof()) {
 		sessions_list >> id;
 		sessions_list.get(c2);
-		session_list[id] = { false,   };
 		get_session_file_path(id, path);
 		session_file.open(path);
 		if (id == prev_id) {
@@ -341,6 +340,7 @@ void load_all_sessions() {
 				session_list[id].variables[variable] = false;
 				session_list[id].values[variable] = 0.0;
                         }
+			variable = -1;
 			session_file.get(c);
                 }
 		session_file.close();
