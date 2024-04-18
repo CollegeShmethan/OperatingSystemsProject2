@@ -154,6 +154,7 @@ bool is_str_numeric(const char str[]) {
  * @return a boolean that determines if the given message is valid
  */
 bool process_message(int session_id, const char message[]) {
+	// Would prefer a full rewrite of this function to make only one acceptable path to return true, and otherwise instantly return false.
     char *token;
     int result_idx;
     double first_value;
@@ -166,17 +167,34 @@ bool process_message(int session_id, const char message[]) {
 
     // Processes the result variable.
     token = strtok(data, " ");
+	if (!token) {
+		return false;
+	}
     result_idx = token[0] - 'a';
+
+	if (result_idx < 0 || result_idx > 25) {
+		return false;
+	}
 
     // Processes "=".
     token = strtok(NULL, " ");
 
+	if (!token || token[0] != '=') {
+		return false;
+	}
+
     // Processes the first variable/value.
     token = strtok(NULL, " ");
+	if (!token) {
+		return false;
+	}
     if (is_str_numeric(token)) {
         first_value = strtod(token, NULL);
     } else {
         int first_idx = token[0] - 'a';
+	if (first_idx < 0 || first_idx > 25 || !session_list[session_id].variables[first_idx]) {
+		return false;
+	}
         first_value = session_list[session_id].values[first_idx];
     }
 
@@ -189,17 +207,33 @@ bool process_message(int session_id, const char message[]) {
     }
     symbol = token[0];
 
+	if (symbol != '*' && symbol != '+' && symbol != '-' && symbol != '/') {
+		return false;
+	}
+
     // Processes the second variable/value.
     token = strtok(NULL, " ");
+	if (!token) {
+		return false;
+	}
     if (is_str_numeric(token)) {
         second_value = strtod(token, NULL);
+	if (second_value == '0' && symbol == '/') {
+		return false;
+	}
     } else {
         int second_idx = token[0] - 'a';
+	if(second_idx < 0 || second_idx > 25 || !session_list[session_id].variables[second_idx]) {
+		return false;
+	}
         second_value = session_list[session_id].values[second_idx];
     }
 
     // No data should be left over thereafter.
     token = strtok(NULL, " ");
+	if (token) {
+		return false;
+	}
 
     session_list[session_id].variables[result_idx] = true;
 
@@ -349,10 +383,9 @@ int register_browser(int browser_socket_fd) {
  *
  * @param browser_socket_fd the socket file descriptor of the browser connected
  */
-void * browser_handler(void* browser_socket_fd) {
-	int browser_id;
-	int bs_fd = *((int *) browser_socket_fd);
-    browser_id = register_browser(bs_fd);
+void * browser_handler(void* bs_fd) {
+	int browser_socket_fd = *((int *) bs_fd);
+    	int browser_id = register_browser(browser_socket_fd);
 
     int socket_fd = browser_list[browser_id].socket_fd;
     int session_id = browser_list[browser_id].session_id;
@@ -372,7 +405,7 @@ void * browser_handler(void* browser_socket_fd) {
             browser_list[browser_id].in_use = false;
             pthread_mutex_unlock(&browser_list_mutex);
             printf("Browser #%d exited.\n", browser_id);
-            return browser_socket_fd;
+            return bs_fd;
         }
 
         if (message[0] == '\0') {
@@ -382,6 +415,7 @@ void * browser_handler(void* browser_socket_fd) {
         bool data_valid = process_message(session_id, message);
         if (!data_valid) {
             // Send the error message to the browser.
+		send_message(browser_socket_fd, "ERROR");
             continue;
         }
 
